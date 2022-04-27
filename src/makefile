@@ -18,7 +18,7 @@ PLAT?=linux
 
 # LUAV: 5.1 5.2 5.3 5.4
 # lua version to build against
-LUAV?=5.1
+LUAV?=5.4
 
 # MYCFLAGS: to be set by user if needed
 MYCFLAGS?=
@@ -149,11 +149,13 @@ print:
 	@echo INSTALL_TOP_LDIR=$(INSTALL_TOP_LDIR)
 	@echo CFLAGS=$(CFLAGS)
 	@echo LDFLAGS=$(LDFLAGS)
+	@echi BR=$(BD)
 
 #------
 # Supported platforms
 #
 PLATS= macosx linux win32 win64 mingw solaris
+BD = ./
 
 #------
 # Compiler and linker settings
@@ -179,6 +181,12 @@ CFLAGS_linux=$(LUAINC:%=-I%) $(DEF) -Wall -Wshadow -Wextra \
 LDFLAGS_linux=-O -shared -fpic -o
 LD_linux=gcc
 SOCKET_linux=usocket.o
+
+ifdef GWC_ARCH
+	BD       := cmp/$(GWC_ARCH)
+	CC_linux := $(CC)
+	LD_linux := $(CC)
+endif
 
 #------
 # Compiler and linker settings
@@ -267,6 +275,9 @@ SOCKET_win64=wsocket.obj
 .c.obj:
 	$(CC) $(CFLAGS) //Fo"$@" //c $<
 
+%.o: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $(BD)/$@ $<
+
 #------
 # Output file names
 #
@@ -274,11 +285,12 @@ SO=$(SO_$(PLAT))
 O=$(O_$(PLAT))
 SOCKET_V=3.0.0
 MIME_V=1.0.3
-SOCKET_SO=socket-$(SOCKET_V).$(SO)
-MIME_SO=mime-$(MIME_V).$(SO)
-UNIX_SO=unix.$(SO)
-SERIAL_SO=serial.$(SO)
-SOCKET=$(SOCKET_$(PLAT))
+SOCKET_SO=$(BD)/socket-$(SOCKET_V).$(SO)
+MIME_SO=$(BD)/mime-$(MIME_V).$(SO)
+UNIX_SO=$(BD)/unix.$(SO)
+SERIAL_SO=$(BD)/serial.$(SO)
+SOCKET=$(BD/)$(SOCKET_$(PLAT))
+$(shell mkdir -p "$(BD)")
 
 #------
 # Settings selected for platform
@@ -396,18 +408,18 @@ none:
 all: $(SOCKET_SO) $(MIME_SO)
 
 $(SOCKET_SO): $(SOCKET_OBJS)
-	$(LD) $(SOCKET_OBJS) $(LDFLAGS)$@
+	$(LD) $(addprefix $(BD)/, $(SOCKET_OBJS)) $(LDFLAGS)$@
 
 $(MIME_SO): $(MIME_OBJS)
-	$(LD) $(MIME_OBJS) $(LDFLAGS)$@
+	$(LD) $(addprefix $(BD)/, $(MIME_OBJS)) $(LDFLAGS)$@
 
 all-unix: all $(UNIX_SO) $(SERIAL_SO)
 
 $(UNIX_SO): $(UNIX_OBJS)
-	$(LD) $(UNIX_OBJS) $(LDFLAGS)$@
+	$(LD) $(addprefix $(BD)/, $(UNIX_OBJS)) $(LDFLAGS)$@
 
 $(SERIAL_SO): $(SERIAL_OBJS)
-	$(LD) $(SERIAL_OBJS) $(LDFLAGS)$@
+	$(LD) $(addprefix $(BD)/, $(SERIAL_OBJS)) $(LDFLAGS)$@
 
 install:
 	$(INSTALL_DIR) $(INSTALL_TOP_LDIR)
@@ -427,8 +439,8 @@ local:
 	$(MAKE) install INSTALL_TOP_CDIR=.. INSTALL_TOP_LDIR=..
 
 clean:
-	rm -f $(SOCKET_SO) $(SOCKET_OBJS) $(SERIAL_OBJS)
-	rm -f $(MIME_SO) $(UNIX_SO) $(SERIAL_SO) $(MIME_OBJS) $(UNIX_OBJS)
+	rm -f $(addprefix $(BD)/, $(SOCKET_OBJS) $(SERIAL_OBJS) $(MIME_OBJS) $(UNIX_OBJS))
+	rm -f $(MIME_SO) $(UNIX_SO) $(SERIAL_SO) $(SOCKET_SO)
 
 .PHONY: all $(PLATS) default clean echo none
 
