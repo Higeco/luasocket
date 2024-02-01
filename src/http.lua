@@ -62,7 +62,7 @@ local function receiveheaders(sock, headers)
         -- unfold any folded values
         while string.find(line, "^%s") do
             value = value .. line
-            line = sock:receive()
+            line, err = sock:receive()
             if err then return nil, err end
         end
         -- save pair in table
@@ -219,9 +219,11 @@ local function adjustproxy(reqt)
     local proxy = reqt.proxy or _M.PROXY
     if proxy then
         proxy = url.parse(proxy)
-        return proxy.host, proxy.port or 3128
+        proxy.port = proxy.port or 3128
+        proxy.create = SCHEMES[proxy.scheme].create(reqt)
+        return proxy.host, proxy.port, proxy.create
     else
-        return reqt.host, reqt.port
+        return reqt.host, reqt.port, reqt.create
     end
 end
 
@@ -291,7 +293,10 @@ local function adjustrequest(reqt)
     end
 
     -- ajust host and port if there is a proxy
-    nreqt.host, nreqt.port = adjustproxy(nreqt)
+    local proxy_create
+    nreqt.host, nreqt.port, proxy_create = adjustproxy(nreqt)
+    if not reqt.create then nreqt.create = proxy_create end
+
     return nreqt
 end
 
@@ -300,6 +305,8 @@ local function shouldredirect(reqt, code, headers)
     if not location then return false end
     location = string.gsub(location, "%s", "")
     if location == "" then return false end
+    -- the RFC says the redirect URL may be relative
+    location = url.absolute(reqt.url, location)
     local scheme = url.parse(location).scheme
     if scheme and (not SCHEMES[scheme]) then return false end
     -- avoid https downgrades
@@ -323,8 +330,7 @@ end
 local trequest, tredirect
 
 --[[local]] function tredirect(reqt, location)
-    -- the RFC says the redirect URL has to be absolute, but some
-    -- servers do not respect that
+    -- the RFC says the redirect URL may be relative
     local newurl = url.absolute(reqt.url, location)
     -- if switching schemes, reset port and create function
     if url.parse(newurl).scheme ~= reqt.scheme then
